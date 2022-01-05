@@ -3,7 +3,8 @@ import { useEffect, useState } from 'react';
 
 function AddModal() {
   const [show, setShow] = useState(false)
-  const [projectName, setProjectName] = useState(null)
+  const [projectName, setProjectName] = useState("")
+  const [collectionName, setCollectionName] = useState("")
   const [images, setImages] = useState(null)
   const [uploading, setUploading] = useState(false)
 
@@ -17,10 +18,15 @@ function AddModal() {
 
     setUploading(true)
 
+    const metadatas = {
+      project: projectName,
+      collection: collectionName
+    }
+
     Promise.all(
       Array.from(images).map(image => {
         const formData = new FormData()
-        formData.append("metadata", `{ "project": "${projectName}" }`)
+        formData.append("metadata", JSON.stringify(metadatas))
         formData.append("file", image)
 
         return fetch(process.env.API_URL, {
@@ -60,6 +66,13 @@ function AddModal() {
                 placeholder="Cutepoop"
                 onChange={(e) => setProjectName(e.target.value)} />
             </Form.Group>
+            <Form.Group className="mb-3" controlId="exampleForm.ControlInput1">
+              <Form.Label>Collection name</Form.Label>
+              <Form.Control
+                type="text"
+                placeholder="backgrounds"
+                onChange={(e) => setCollectionName(e.target.value)} />
+            </Form.Group>
             <Form.Group controlId="formFileMultiple" className="mb-3">
               <Form.Label>Select images</Form.Label>
               <Form.Control
@@ -85,6 +98,7 @@ function AddModal() {
 function UpdateModal(props) {
   const [show, setShow] = useState(false)
   const [projectName, setProjectName] = useState("")
+  const [collectionName, setCollectionName] = useState("")
   const [isLoaded, setIsLoaded] = useState(false)
 
   const handleClose = () => setShow(false)
@@ -92,6 +106,7 @@ function UpdateModal(props) {
     setShow(true)
     if (props.image.meta) {
       setProjectName(props.image.meta.project)
+      setCollectionName(props.image.meta.collection)
     }
   }
 
@@ -101,7 +116,8 @@ function UpdateModal(props) {
 
     const datas = {
       metadata: {
-        project: projectName
+        project: projectName,
+        collection: collectionName
       }
     }
 
@@ -144,6 +160,13 @@ function UpdateModal(props) {
                 placeholder="Cutepoop"
                 value={projectName}
                 onChange={(e) => setProjectName(e.target.value)} />
+            </Form.Group>
+            <Form.Group className="mb-3" controlId="exampleForm.ControlInput1">
+              <Form.Label>Collection name</Form.Label>
+              <Form.Control
+                type="text"
+                placeholder="backgrounds"
+                onChange={(e) => setCollectionName(e.target.value)} />
             </Form.Group>
             <Button variant="primary" type="submit" disabled={isLoaded}>
               Update
@@ -188,6 +211,19 @@ export default function Home() {
     }
   }
 
+  function exportNameId() {
+    const exportDatas = Array.from(images)
+    .filter(image => {
+      return (image.meta && image.meta.project === "Pathfinder" && image.meta.collection === "Rarity")
+    }).map(image => {
+      return {
+        [image.filename]: image.id
+      }
+    })
+
+    console.log(exportDatas)
+  }
+
   function copyOnClick(text) {
     navigator.clipboard.writeText(text)
   }
@@ -223,9 +259,10 @@ export default function Home() {
         </Col>
         <Col>
           <AddModal />
+          <Button onClick={() => exportNameId()}>Export Name/id List</Button>
         </Col>
       </Row>
-      <Row>
+      <Row xs={2} sm={4} lg={8}>
         {
           images.map((image) => {
             return (
@@ -235,7 +272,7 @@ export default function Home() {
                   <Card.Body>
                     <Card.Title onClick={() => copyOnClick(image.filename)}>{image.filename}</Card.Title>
                     <Card.Text>
-                      {image.meta && <>{image.meta.project}</>}
+                      {image.meta && <>{image.meta.project} -> {image.meta.collection}</>}
                     </Card.Text>
                     <Button onClick={() => deleteImage(image)} variant="danger" size="sm">Delete</Button>
                     <UpdateModal image={image} />
@@ -246,7 +283,6 @@ export default function Home() {
           })
         }
       </Row>
-
     </Container>
   )
 }
