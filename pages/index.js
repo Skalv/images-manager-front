@@ -1,10 +1,6 @@
 import { Button, Container, Row, CardGroup, Card, Modal, Col, Form, CardImg } from 'react-bootstrap';
 import { useEffect, useState } from 'react';
 
-const ProxyUrl = "https://api-proxy.skalvstudio.workers.dev/corsproxy/"
-const APIURL = `${ProxyUrl}?apiurl=https://api.cloudflare.com/client/v4/accounts/70dec78a5939454a8fcd8c8fa205f00e/images/v1`
-
-
 function copyOnClick(text) {
   navigator.clipboard.writeText(text)
 }
@@ -86,11 +82,13 @@ export default function Home() {
   const [isLoaded, setIsLoaded] = useState(false)
 
   useEffect(() => {
-    fetch(`${APIURL}`, {
+    console.log(process.env.CF_API_KEY, process.env.CF_API_EMAIL)
+
+    fetch(`${process.env.API_URL}`, {
       method: "get",
       headers: new Headers({
         "X-Auth-Email": "fboutin@skalv-studio.fr",
-        "X-Auth-Key": APIKEY,
+        "X-Auth-Key": process.env.CF_API_KEY,
         "Content-Type": "application/json"
       })
     }).then(res => res.json())
