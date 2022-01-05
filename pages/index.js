@@ -1,38 +1,44 @@
-import { Button, Container, Row, CardGroup, Card, Modal, Col, Form, CardImg } from 'react-bootstrap';
+import { Button, Container, Row, CardGroup, Card, Modal, Col, Form } from 'react-bootstrap';
 import { useEffect, useState } from 'react';
-
-function copyOnClick(text) {
-  navigator.clipboard.writeText(text)
-}
 
 function AddModal() {
   const [show, setShow] = useState(false)
   const [projectName, setProjectName] = useState(null)
   const [images, setImages] = useState(null)
+  const [uploading, setUploading] = useState(false)
 
   const handleClose = () => setShow(false)
   const handleShow = () => setShow(true)
 
   const handleSubmit = (e) => {
     e.preventDefault()
+    
+    if (!images) return
 
-    const formData = new FormData()
-    formData.append("metadata", `{ "project": "${projectName}" }`)
-    formData.append("file", images[0])
+    setUploading(true)
 
-    fetch(APIURL, {
-      method: "POST",
-      headers: new Headers({
-        "X-Auth-Email": "fboutin@skalv-studio.fr",
-        "X-Auth-Key": APIKEY,
-      }),
-      body: formData
-    }).then(response => {
+    Promise.all(
+      Array.from(images).map(image => {
+        const formData = new FormData()
+        formData.append("metadata", `{ "project": "${projectName}" }`)
+        formData.append("file", image)
+
+        return fetch(process.env.API_URL, {
+          method: "POST",
+          headers: new Headers({
+            "X-Auth-Email": process.env.CF_API_EMAIL,
+            "X-Auth-Key": process.env.CF_API_KEY,
+          }),
+          body: formData
+        })
+      })
+    ).then(response => {
       console.log(response)
+      setUploading(false)
     }).catch(err => {
+      setUploading(false)
       console.log(err)
     })
-
   }
 
   return (
@@ -61,8 +67,86 @@ function AddModal() {
                 multiple
                 onChange={(e) => setImages(e.target.files)} />
             </Form.Group>
-            <Button variant="primary" type="submit">
+            <Button variant="primary" type="submit" disabled={uploading}>
               Upload
+            </Button>
+          </Form>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={handleClose}>
+            Close
+          </Button>
+        </Modal.Footer>
+      </Modal>
+    </>
+  )
+}
+
+function UpdateModal(props) {
+  const [show, setShow] = useState(false)
+  const [projectName, setProjectName] = useState("")
+  const [isLoaded, setIsLoaded] = useState(false)
+
+  const handleClose = () => setShow(false)
+  const handleShow = () => {
+    setShow(true)
+    if (props.image.meta) {
+      setProjectName(props.image.meta.project)
+    }
+  }
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    setIsLoaded(true)
+
+    const datas = {
+      metadata: {
+        project: projectName
+      }
+    }
+
+    fetch(`${process.env.API_URL}/${props.image.id}`, {
+      method: "PATCH",
+      headers: new Headers({
+        "X-Auth-Email": process.env.CF_API_EMAIL,
+        "X-Auth-Key": process.env.CF_API_KEY,
+        "Content-Type": "application/json"
+      }),
+      body: JSON.stringify(datas)
+    })
+    .then(res => res.json())
+    .then(response => {
+      console.log(response)
+      setIsLoaded(false)
+    })
+    .catch(err => {
+      console.log(err)
+      setIsLoaded(false)
+    })
+  }
+
+  return (
+    <>
+      <Button variant="primary" size="sm" onClick={handleShow}>
+        Update Project
+      </Button>
+
+      <Modal show={show} onHide={handleClose} size="md">
+        <Modal.Header closeButton>
+          <Modal.Title>Update project name of {props.image.filename}</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form onSubmit={handleSubmit}>
+            <Form.Group className="mb-3" controlId="exampleForm.ControlInput1">
+              <Form.Label>Project name</Form.Label>
+              <Form.Control
+                type="text"
+                placeholder="Cutepoop"
+                value={projectName}
+                onChange={(e) => setProjectName(e.target.value)} />
+            </Form.Group>
+            <Button variant="primary" type="submit" disabled={isLoaded}>
+              Update
             </Button>
           </Form>
         </Modal.Body>
@@ -81,13 +165,40 @@ export default function Home() {
   const [error, setError] = useState(null)
   const [isLoaded, setIsLoaded] = useState(false)
 
+  function deleteImage(image) {
+    if(confirm(`Supprimer ${image.filename} ?`)) {
+      setIsLoaded(true)
+      fetch(`${process.env.API_URL}/${image.id}`, {
+        method: "delete",
+        headers: new Headers({
+          "X-Auth-Email": process.env.CF_API_EMAIL,
+          "X-Auth-Key": process.env.CF_API_KEY,
+          "Content-Type": "application/json"
+        })
+      })
+      .then(res => res.json())
+      .then(response => {
+        console.log(response)
+        setIsLoaded(false)
+      })
+      .catch(err => {
+        console.log(err)
+        setIsLoaded(false)
+      })
+    }
+  }
+
+  function copyOnClick(text) {
+    navigator.clipboard.writeText(text)
+  }
+
   useEffect(() => {
-    console.log(process.env.CF_API_KEY, process.env.CF_API_EMAIL)
+    if (isLoaded) return
 
     fetch(`${process.env.API_URL}`, {
       method: "get",
       headers: new Headers({
-        "X-Auth-Email": "fboutin@skalv-studio.fr",
+        "X-Auth-Email": process.env.CF_API_EMAIL,
         "X-Auth-Key": process.env.CF_API_KEY,
         "Content-Type": "application/json"
       })
@@ -100,9 +211,7 @@ export default function Home() {
           setIsLoaded(true)
           setError(error)
         })
-  }, [])
-
-
+  }, [isLoaded])
 
   return (
     <Container>
@@ -126,8 +235,10 @@ export default function Home() {
                   <Card.Body>
                     <Card.Title onClick={() => copyOnClick(image.filename)}>{image.filename}</Card.Title>
                     <Card.Text>
-                      {image.meta && <p>{image.meta.project}</p>}
+                      {image.meta && <>{image.meta.project}</>}
                     </Card.Text>
+                    <Button onClick={() => deleteImage(image)} variant="danger" size="sm">Delete</Button>
+                    <UpdateModal image={image} />
                   </Card.Body>
                 </Card>
               </Col>
