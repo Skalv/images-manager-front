@@ -213,17 +213,17 @@ export default function Home() {
   }
 
   function exportNameId() {
-    const exportDatas = Array.from(images)
+    let exportDatas = {}
+    const imagesToExport = Array.from(images)
       .filter(image => {
         return (image.meta && image.meta.project === "Pathfinders" && image.meta.collection === "AnimBackground")
-      }).map(image => {
-        return {
-          [image.filename]: image.id
-        }
+      }).forEach(image => {
+        exportDatas[image.filename] = image.id
       })
 
     copyOnClick(JSON.stringify(exportDatas))
     console.log(exportDatas)
+    console.log(exportDatas['BG_website519.jpg'])
   }
 
   function copyOnClick(text) {
