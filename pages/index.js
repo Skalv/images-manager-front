@@ -1,5 +1,5 @@
 import { Button, Container, Row, CardGroup, Card, Modal, Col, Form } from 'react-bootstrap';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 
 function AddModal() {
   const [show, setShow] = useState(false)
@@ -13,7 +13,7 @@ function AddModal() {
 
   const handleSubmit = (e) => {
     e.preventDefault()
-    
+
     if (!images) return
 
     setUploading(true)
@@ -130,15 +130,15 @@ function UpdateModal(props) {
       }),
       body: JSON.stringify(datas)
     })
-    .then(res => res.json())
-    .then(response => {
-      console.log(response)
-      setIsLoaded(false)
-    })
-    .catch(err => {
-      console.log(err)
-      setIsLoaded(false)
-    })
+      .then(res => res.json())
+      .then(response => {
+        console.log(response)
+        setIsLoaded(false)
+      })
+      .catch(err => {
+        console.log(err)
+        setIsLoaded(false)
+      })
   }
 
   return (
@@ -187,9 +187,10 @@ export default function Home() {
   const [images, setImages] = useState([])
   const [error, setError] = useState(null)
   const [isLoaded, setIsLoaded] = useState(false)
+  const [fetchEnd, setFetchEnd] = useState(false)
 
   function deleteImage(image) {
-    if(confirm(`Supprimer ${image.filename} ?`)) {
+    if (confirm(`Supprimer ${image.filename} ?`)) {
       setIsLoaded(true)
       fetch(`${process.env.API_URL}/${image.id}`, {
         method: "delete",
@@ -199,28 +200,29 @@ export default function Home() {
           "Content-Type": "application/json"
         })
       })
-      .then(res => res.json())
-      .then(response => {
-        console.log(response)
-        setIsLoaded(false)
-      })
-      .catch(err => {
-        console.log(err)
-        setIsLoaded(false)
-      })
+        .then(res => res.json())
+        .then(response => {
+          console.log(response)
+          setIsLoaded(false)
+        })
+        .catch(err => {
+          console.log(err)
+          setIsLoaded(false)
+        })
     }
   }
 
   function exportNameId() {
     const exportDatas = Array.from(images)
-    .filter(image => {
-      return (image.meta && image.meta.project === "Pathfinder" && image.meta.collection === "Rarity")
-    }).map(image => {
-      return {
-        [image.filename]: image.id
-      }
-    })
+      .filter(image => {
+        return (image.meta && image.meta.project === "Pathfinders" && image.meta.collection === "AnimBackground")
+      }).map(image => {
+        return {
+          [image.filename]: image.id
+        }
+      })
 
+    copyOnClick(JSON.stringify(exportDatas))
     console.log(exportDatas)
   }
 
@@ -228,10 +230,9 @@ export default function Home() {
     navigator.clipboard.writeText(text)
   }
 
-  useEffect(() => {
-    if (isLoaded) return
-
-    fetch(`${process.env.API_URL}`, {
+  const fetchImages = useCallback(page => {
+    setIsLoaded(true)
+    fetch(`${process.env.API_URL}?page=${page}`, {
       method: "get",
       headers: new Headers({
         "X-Auth-Email": process.env.CF_API_EMAIL,
@@ -239,15 +240,21 @@ export default function Home() {
         "Content-Type": "application/json"
       })
     }).then(res => res.json())
-      .then(
-        result => {
-          setImages(result.result.images)
-          setIsLoaded(true)
-        }, error => {
-          setIsLoaded(true)
-          setError(error)
-        })
-  }, [isLoaded])
+      .then(result => {
+        setImages(currentImgs => currentImgs.concat(result.result.images))
+        if (result.result.images.length === 50) {
+          fetchImages(page + 1)
+        } else {
+          setFetchEnd(true)
+          setIsLoaded(false)
+        }
+      })
+  }, [])
+
+  useEffect(() => {
+    if (isLoaded || fetchEnd) return
+    fetchImages(1)
+  }, [isLoaded, fetchImages, fetchEnd])
 
   return (
     <Container>
@@ -272,7 +279,7 @@ export default function Home() {
                   <Card.Body>
                     <Card.Title onClick={() => copyOnClick(image.filename)}>{image.filename}</Card.Title>
                     <Card.Text>
-                      {image.meta && <>{image.meta.project} -> {image.meta.collection}</>}
+                      {image.meta && <>{image.meta.project} {image.meta.collection}</>}
                     </Card.Text>
                     <Button onClick={() => deleteImage(image)} variant="danger" size="sm">Delete</Button>
                     <UpdateModal image={image} />
